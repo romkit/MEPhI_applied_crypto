@@ -2,17 +2,16 @@ import uuid
 import secrets
 from datetime import datetime, timedelta
 import gostcrypto
-from Crypto.PublicKey import ECC
-from Crypto.Random import get_random_bytes
-import json
 import binascii
 
+# объект для подписи
 sign_obj = gostcrypto. \
     gostsignature.new(gostcrypto.gostsignature.MODE_256,
                       gostcrypto.gostsignature.
                       CURVES_R_1323565_1_024_2019['id-tc26-gost-3410-2012-256-paramSetB'])
 
 
+# получение хэша по ГОСТ
 def get_hash(obj):
     hash_str = str(obj).encode('utf-8')
     hash_obj = gostcrypto.gosthash.new('streebog256', data=hash_str)
@@ -23,12 +22,14 @@ def bytearray_to_normal(obj):
     return binascii.hexlify(obj).decode('utf-8')
 
 
+# тут сразу реализуются функции для создания юзера
 def create_user(name):
     name.set_private_key()
     name.set_public_key()
     name.get_cert_from_uc(centr)
 
 
+# класс удостоверяющего центра
 class UC:
     def __init__(self):
         self.name = uuid.uuid4()
@@ -38,6 +39,8 @@ class UC:
         self.test_text = 'This-is-test-text'.encode('utf-8')
         self.public_key = None
         self.private_key = None
+
+    #создание ключей подписи
 
     def get_private_key(self):
         return secrets.randbits(256).to_bytes(32, byteorder='big')
@@ -53,13 +56,16 @@ class UC:
     def set_public_key(self):
         self.public_key = self.get_public_key(self.private_key)
 
+    # получение подписи
     def get_sign(self, obj):
         hash_obj = get_hash(obj)
         return binascii.hexlify(
             sign_obj.sign(self.private_key, hash_obj)).decode('utf-8')
 
+    # создание сертификата
     def get_cert(self, username, public_key, test_cipher):
-        if username in self.users_certs and public_key in [cert['public_key'] for cert in self.users_certs[username]]:
+        if username in self.users_certs and public_key in \
+                [cert['public_key'] for cert in self.users_certs[username]]:
             print('User already has a cert for this key')
             return
         if username not in self.users_certs.keys():
@@ -83,6 +89,7 @@ class UC:
         self.users_certs[username].append(cert)
         return cert
 
+    # инициализация списка аннулированных сертификатов
     def set_crl(self):
         crl = {
             'ds_alg': 'GOST 256',
@@ -95,6 +102,7 @@ class UC:
         # crl['uc_sign'] = binascii.hexlify(uc_sign).decode('utf-8')
         self.canc_certs = [crl, uc_sign]
 
+    # аннулирование сертификата по запросу
     def crl(self, username, cert_num, test_cipher):
         current_cert = None
         if username not in self.users_certs:
@@ -122,6 +130,7 @@ class UC:
         return self.canc_certs
 
 
+# класс пользователя
 class User:
     def __init__(self):
         self.username = uuid.uuid4()
@@ -130,6 +139,7 @@ class User:
         self.certs = []
         self.crl = None
 
+    # создание ключей
     def get_private_key(self):
         return secrets.randbits(256).to_bytes(32, byteorder='big')
 
@@ -142,22 +152,29 @@ class User:
     def set_public_key(self):
         self.public_key = self.get_public_key(self.private_key)
 
+    # получение подписи
     def get_sign(self, obj):
         hash_obj = get_hash(obj)
         return sign_obj.sign(self.private_key, hash_obj)
 
+    # получение сертификата от УЦ
     def get_cert_from_uc(self, uc):
         test_cipher = self.get_sign(uc.test_text)
         cert = uc.get_cert(self.username, self.public_key, test_cipher)
         self.certs.append(cert)
         print('Cert created: ', cert)
 
+    # запрос на удаление сертификата
     def remove_cert_from_uc(self, uc, cert_num):
         test_cipher = self.get_sign(uc.test_text)
         uc.crl(self.username, cert_num, test_cipher)
         removing = next((cert for cert in self.certs if cert['cert_num'] == cert_num), None)
+        if removing not in self.certs:
+            print(f'User have no cert with {cert_num} number')
+            return
         self.certs.remove(removing)
 
+    # получение сертификата другого пользователя
     def get_partner_cert(self, uc, username, cert_num):
         try:
             partner_cert = None
@@ -189,11 +206,14 @@ if __name__ == "__main__":
     # Alice.set_public_key()
     # Alice.get_cert_from_uc(centr)
     create_user(Alice)
+    tmp_num = Alice.certs[0]['cert_num']
     Alice.remove_cert_from_uc(centr, Alice.certs[0]['cert_num'])
+    Alice.remove_cert_from_uc(centr, tmp_num)
     Alice.get_cert_from_uc(centr)
 
     Bob = User()
     create_user(Bob)
     print('certs: ', centr.users_certs)
     Bob.get_partner_cert(centr, Alice.username, Alice.certs[0]['cert_num'])
+    Bob.get_partner_cert(centr, uuid.uuid4(), Alice.certs[0]['cert_num'])
     Alice.remove_cert_from_uc(centr, Alice.certs[0]['cert_num'])
