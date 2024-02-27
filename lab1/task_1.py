@@ -22,7 +22,7 @@ def bytearray_to_normal(obj):
     return binascii.hexlify(obj).decode('utf-8')
 
 
-# тут сразу реализуются функции для создания юзера
+# тут сразу используются функции для создания юзера
 def create_user(name):
     name.set_private_key()
     name.set_public_key()
