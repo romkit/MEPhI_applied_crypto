@@ -205,15 +205,21 @@ if __name__ == "__main__":
     # Alice.set_private_key()
     # Alice.set_public_key()
     # Alice.get_cert_from_uc(centr)
+    # создание пользователя
     create_user(Alice)
     tmp_num = Alice.certs[0]['cert_num']
+    # запрос аннулирования сертификата
     Alice.remove_cert_from_uc(centr, Alice.certs[0]['cert_num'])
+    # запрос аннулирования несуществующего сертификата
     Alice.remove_cert_from_uc(centr, tmp_num)
+    # получение нового сертификата
     Alice.get_cert_from_uc(centr)
 
     Bob = User()
     create_user(Bob)
     print('certs: ', centr.users_certs)
+    # получение сертификата другого участника
     Bob.get_partner_cert(centr, Alice.username, Alice.certs[0]['cert_num'])
+    # получение сертификата несуществующего участника
     Bob.get_partner_cert(centr, uuid.uuid4(), Alice.certs[0]['cert_num'])
     Alice.remove_cert_from_uc(centr, Alice.certs[0]['cert_num'])
