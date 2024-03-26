@@ -129,6 +129,22 @@ class UC:
         print('canceled certs: ', self.canc_certs)
         return self.canc_certs
 
+    def check_sign(self, username, data, sign):
+        if username not in self.users_certs:
+            print('Username has not sert')
+            return
+        #print(type(self.users_certs[username][0]['public_key']))
+        try:
+            if not sign_obj.verify(bytearray.fromhex(self.users_certs[username][0]['public_key']),
+                                   get_hash(data), sign):
+                print('Wrong sign')
+                return
+            else:
+                print('Correct sign')
+                return True
+        except gostcrypto.gostsignature.gost_34_10_2012.GOSTSignatureError:
+            print('Incorrect signature value')
+            exit()
 
 # класс пользователя
 class User:
@@ -138,6 +154,7 @@ class User:
         self.public_key = None
         self.certs = []
         self.crl = None
+        self.uc_name = None
 
     # создание ключей
     def get_private_key(self):
@@ -162,6 +179,7 @@ class User:
         test_cipher = self.get_sign(uc.test_text)
         cert = uc.get_cert(self.username, self.public_key, test_cipher)
         self.certs.append(cert)
+        self.uc_name = uc
         print('Cert created: ', cert)
 
     # запрос на удаление сертификата
@@ -223,3 +241,4 @@ if __name__ == "__main__":
     # получение сертификата несуществующего участника
     Bob.get_partner_cert(centr, uuid.uuid4(), Alice.certs[0]['cert_num'])
     Alice.remove_cert_from_uc(centr, Alice.certs[0]['cert_num'])
+    #print(get_hash('abcde'))
